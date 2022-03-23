@@ -7,6 +7,9 @@ namespace AsyncReader.Demo
     {
         [SerializeField] private RawImage _rawImage;
 
+        public Texture2D Texture => _rawImage.texture as Texture2D;
+        public string FilePath { get; set; }
+
         public void SetTexture(Texture2D texture)
         {
             _rawImage.texture = texture;

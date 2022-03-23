@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Threading;
 using System.Threading.Tasks;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
@@ -14,21 +15,49 @@ namespace AsyncReader
         private NativeArray<ReadCommand> _readCommands;
         private long _fileSize = 0;
 
-        private TaskCompletionSource<Texture2D> _completionSource;
+        private TaskCompletionSource<ImageInfo> _completionSource;
+        private Texture2D _texture;
         private bool _disposed = false;
+        private bool _running = false;
+        private Thread _thread;
+        private SynchronizationContext _context;
+        private CancellationToken _cancellationToken;
 
-        public async Task<Texture2D> LoadAsync(string path)
+        public AsyncImageReader()
+        {
+            _context = SynchronizationContext.Current;
+        }
+
+        public async Task<Texture2D> LoadAsync(string path, CancellationToken cancellationToken = default)
         {
             if (_disposed)
             {
                 throw new ObjectDisposedException("This object is already disposed so this is not able to load a texture.");
             }
 
-            _completionSource = new TaskCompletionSource<Texture2D>();
+            if (_running)
+            {
+                Debug.LogError($"This instance is still running.");
+                return null;
+            }
+
+            _running = true;
+
+            _cancellationToken = cancellationToken;
+
+            _completionSource = new TaskCompletionSource<ImageInfo>();
 
             UnsafeLoad(path);
 
-            return await _completionSource.Task;
+            ImageInfo info = await _completionSource.Task;
+
+            Texture2D texture = new Texture2D(info.header.width, info.header.height, info.header.Format, false);
+            texture.LoadRawTextureData(info.buffer, info.fileSize);
+            texture.Apply();
+
+            Dispose();
+
+            return texture;
         }
 
         private unsafe void UnsafeLoad(string path)
@@ -36,83 +65,74 @@ namespace AsyncReader
             FileInfo info = new FileInfo(path);
             _fileSize = info.Length;
 
-            _readCommands = new NativeArray<ReadCommand>(1, Allocator.Persistent);
+            _readCommands = new NativeArray<ReadCommand>(1, Allocator.TempJob);
             _readCommands[0] = new ReadCommand
             {
                 Offset = 0,
                 Size = _fileSize,
-                Buffer = (byte*)UnsafeUtility.Malloc(_fileSize, UnsafeUtility.AlignOf<byte>(), Allocator.Persistent),
+                Buffer = (byte*)UnsafeUtility.Malloc(_fileSize, UnsafeUtility.AlignOf<byte>(), Allocator.TempJob),
             };
 
             _readHandle = AsyncReadManager.Read(path, (ReadCommand*)_readCommands.GetUnsafePtr(), 1);
 
-            CheckLoop();
+            _thread = new Thread(CheckLoop);
+            _thread.IsBackground = true;
+            _thread.Start();
         }
 
-        private async void CheckLoop()
+        private void CheckLoop()
         {
-            while (true)
+            while (_running)
             {
+                if (_cancellationToken.IsCancellationRequested)
+                {
+                    Dispose();
+                    return;
+                }
+
                 if (_readHandle.Status == ReadStatus.InProgress)
                 {
-                    await Task.Delay(TimeSpan.FromSeconds(Time.deltaTime));
+                    Thread.Sleep(16);
                     continue;
                 }
 
                 if (_readHandle.Status != ReadStatus.Complete)
                 {
                     Dispose();
-                    Notify(null);
+                    _completionSource.TrySetException(new InvalidDataException());
                 }
                 else
                 {
-                    Texture2D result = ReadTexture();
-                    Notify(result);
+                    if (_cancellationToken.IsCancellationRequested)
+                    {
+                        Dispose();
+                        return;
+                    }
+
+                    ImageInfo result = DecodeData();
+                    _completionSource.TrySetResult(result);
                 }
 
                 break;
             }
         }
 
-        private void Notify(Texture2D result)
-        {
-            _completionSource.TrySetResult(result);
-        }
-
-        private unsafe Texture2D ReadTexture()
+        private unsafe ImageInfo DecodeData()
         {
             IntPtr ptr = (IntPtr)_readCommands[0].Buffer;
-
-            Texture2D texture = new Texture2D(1, 1);
-
-            try
-            {
-                texture.LoadRawTextureData(ptr, (int)_fileSize);
-                texture.Apply();
-            }
-            catch (Exception e)
-            {
-                Debug.Log(e);
-
-                GameObject.Destroy(texture);
-
-                throw;
-            }
-            finally
-            {
-                Dispose();
-            }
-
-            return texture;
+            return ImageConverter.Decode(ptr, (int)_fileSize);
         }
 
         private unsafe void Dispose()
         {
-            _readHandle.Dispose();
-            UnsafeUtility.Free(_readCommands[0].Buffer, Allocator.Persistent);
-            _readCommands.Dispose();
-
+            if (_disposed) return;
+            
             _disposed = true;
+            _running = false;
+
+            _readHandle.Dispose();
+            UnsafeUtility.Free(_readCommands[0].Buffer, Allocator.TempJob);
+            _readCommands.Dispose();
         }
     }
 }

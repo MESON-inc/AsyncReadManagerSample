@@ -4,24 +4,60 @@ using UnityEngine;
 
 namespace AsyncReader
 {
+    [StructLayout(LayoutKind.Sequential)]
+    public struct ImageHeader
+    {
+        public int width;
+        public int height;
+        public int formatType;
+
+        public static int Size => sizeof(int) * 3;
+
+        public TextureFormat Format => (TextureFormat)formatType;
+
+        public static ImageHeader Parse(IntPtr dataPointer)
+        {
+            // A header includes 3 int values. Width, Height and Format.
+            int headerSize = sizeof(int) * 3;
+            byte[] data = new byte[headerSize];
+            Marshal.Copy(dataPointer, data, 0, headerSize);
+
+            int width = BitConverter.ToInt32(data, 0);
+            int height = BitConverter.ToInt32(data, 4);
+            int formatType = BitConverter.ToInt32(data, 8);
+
+            return new ImageHeader
+            {
+                width = width,
+                height = height,
+                formatType = formatType,
+            };
+        }
+    }
+
+    public struct ImageInfo
+    {
+        public ImageHeader header;
+        public IntPtr buffer;
+        public int fileSize;
+    }
+
     public static class ImageConverter
     {
-        public static byte[] Encode(Texture2D texture)
+        public static byte[] Encode(byte[] data, int width, int height, TextureFormat format)
         {
-            if (texture == null)
+            if (data == null)
             {
                 throw new ArgumentNullException();
             }
-            
-            byte[] data = texture.GetRawTextureData();
 
-            byte[] widthData = BitConverter.GetBytes(texture.width);
-            byte[] heightData = BitConverter.GetBytes(texture.height);
-            byte[] formatData = BitConverter.GetBytes((int)texture.format);
+            byte[] widthData = BitConverter.GetBytes(width);
+            byte[] heightData = BitConverter.GetBytes(height);
+            byte[] formatData = BitConverter.GetBytes((int)format);
 
             int headerSize = widthData.Length + heightData.Length + formatData.Length;
             byte[] result = new byte[headerSize + data.Length];
-            
+
             // Write the header info.
             Array.Copy(widthData, 0, result, 0, widthData.Length);
             Array.Copy(heightData, 0, result, widthData.Length, heightData.Length);
@@ -33,38 +69,33 @@ namespace AsyncReader
             return result;
         }
 
-        public static unsafe Texture2D Decode(IntPtr pointer, int fileSize)
+        public static unsafe ImageInfo Decode(IntPtr pointer, int fileSize)
         {
-            // A header includes 3 int values. Width, Height and Format.
-            int headerSize = sizeof(int) * 3;
-
-            byte[] data = new byte[headerSize];
-            Marshal.Copy(pointer, data, 0, headerSize);
-
-            int width = BitConverter.ToInt32(data, 0);
-            int height = BitConverter.ToInt32(data, 4);
-            TextureFormat format = (TextureFormat)BitConverter.ToInt32(data, 8);
+            ImageHeader header = ImageHeader.Parse(pointer);
 
             byte* p = (byte*)pointer;
-            
+
             // Proceed the pointer position to under its header.
-            p += 12;
+            p += ImageHeader.Size;
 
-            IntPtr texturePointer = (IntPtr)p;
-
-            Texture2D texture = new Texture2D(width, height, format, false);
-            try
+            return new ImageInfo
             {
-                texture.LoadRawTextureData(texturePointer, fileSize);
-                texture.Apply();
-            }
-            catch (Exception e)
-            {
-                Debug.LogError($"[{nameof(ImageConverter)}] Failed to load a texture from a texture pointer. Make sure that the pointer has a header its format.");
-                throw;
-            }
+                header = header,
+                buffer = (IntPtr)p,
+                fileSize = fileSize,
+            };
+        }
 
-            return texture;
+        public static unsafe ImageInfo Decode(byte[] rawData)
+        {
+            int fileSize = rawData.Length - ImageHeader.Size;
+
+            fixed (byte* pinned = rawData)
+            {
+                IntPtr pointer = (IntPtr)pinned;
+
+                return Decode(pointer, fileSize);
+            }
         }
     }
 }

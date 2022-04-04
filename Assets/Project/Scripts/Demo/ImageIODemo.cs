@@ -1,23 +1,26 @@
-using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Threading;
-using System.Threading.Tasks;
 using UnityEngine;
-using UnityEngine.Profiling;
+using UnityEngine.Networking;
 using Debug = UnityEngine.Debug;
+using AsyncReader.Utility;
 
 namespace AsyncReader.Demo
 {
-    public class ImageLoaderTest : MonoBehaviour
+    public class ImageIODemo : MonoBehaviour
     {
         [SerializeField] private string[] _filenames;
         [SerializeField] private Preview _previewPrefab;
         [SerializeField] private Transform _parent;
 
-        private string _cacheDataPath;
-        private string DirectoryPath => $"{_cacheDataPath}";
+        public string[] ImageFilenameList => _filenames.Select(filename => GetStreamingAssetsPath(filename)).ToArray();
+        public string[] ByteFilenameList => _filenames.Select(filename => GetRawDataSavePath(GetStreamingAssetsPath(filename))).ToArray();
+
+        private string _cachedStreamingAssetsPath;
+        private string _cachedPersistentDataPath;
 
         private List<Preview> _previews = new List<Preview>();
 
@@ -28,7 +31,8 @@ namespace AsyncReader.Demo
 
         private void Awake()
         {
-            _cacheDataPath = Application.streamingAssetsPath;
+            _cachedStreamingAssetsPath = Application.streamingAssetsPath;
+            _cachedPersistentDataPath = Application.persistentDataPath;
             _context = SynchronizationContext.Current;
         }
 
@@ -41,8 +45,7 @@ namespace AsyncReader.Demo
 
             if (Input.GetKeyDown(KeyCode.A))
             {
-                LoadAsync();
-                // LoadAsyncOnce();
+                LoadUsingAsyncReadManager();
             }
         }
 
@@ -71,24 +74,26 @@ namespace AsyncReader.Demo
 
                 if (GUI.Button(new Rect(50, 230, 300, 150), "LoadAsync"))
                 {
-                    LoadAsync();
+                    LoadUsingAsyncReadManager();
                 }
             }
         }
 
-        private void Load()
+        private async void Load()
         {
             Stopwatch sw = new Stopwatch();
             sw.Start();
             foreach (string filename in _filenames)
             {
-                string path = $"{DirectoryPath}/{filename}";
+                string path = GetStreamingAssetsPath(filename);
 
-                Texture2D texture = new Texture2D(0, 0);
-                byte[] data = File.ReadAllBytes(path);
-                texture.LoadImage(data);
+                using UnityWebRequest request = UnityWebRequestTexture.GetTexture(path);
 
-                CreatePreview(texture, path);
+                await request.SendWebRequest();
+
+                Texture2D texture = DownloadHandlerTexture.GetContent(request);
+
+                CreatePreview(texture, filename);
             }
 
             sw.Stop();
@@ -98,21 +103,19 @@ namespace AsyncReader.Demo
             _loaded = true;
         }
 
-        private async void LoadAsync()
+        private async void LoadUsingAsyncReadManager()
         {
             _tokenSource = new CancellationTokenSource();
 
             foreach (string filename in _filenames)
             {
                 AsyncImageReader reader = new AsyncImageReader();
-                string basePath = $"{DirectoryPath}/{filename}";
-                string rawDataPath = GetRawDataSavePath(basePath);
-
+                string rawDataPath = GetRawDataSavePath(filename);
                 Texture2D texture = await reader.LoadAsync(rawDataPath, _tokenSource.Token);
 
                 if (_tokenSource.IsCancellationRequested) return;
 
-                CreatePreview(texture, rawDataPath);
+                CreatePreview(texture, filename);
             }
 
             _loaded = true;
@@ -124,28 +127,43 @@ namespace AsyncReader.Demo
         {
             foreach (var preview in _previews)
             {
-                string path = GetRawDataSavePath(preview.FilePath);
-                ImageSaveTest.Save(preview.Texture, path);
+                Save(preview.Texture, preview.Filename);
             }
 
             _saved = true;
         }
 
-        private void CreatePreview(Texture2D texture, string path)
+        private void CreatePreview(Texture2D texture, string filename)
         {
             Preview preview = Instantiate(_previewPrefab);
             preview.SetTexture(texture);
-            preview.FilePath = path;
+            preview.Filename = filename;
             preview.transform.SetParent(_parent, false);
 
             _previews.Add(preview);
         }
+        
+        private string GetStreamingAssetsPath(string filename) => $"{_cachedStreamingAssetsPath}/{filename}";
+        private string GetPersistentDataPath(string filename) => $"{_cachedPersistentDataPath}/{filename}";
 
-        private string GetRawDataSavePath(string basePath)
+        private string GetRawDataSavePath(string filename)
         {
-            string directory = Path.GetDirectoryName(basePath);
-            string withoutExt = Path.GetFileNameWithoutExtension(basePath);
+            string path = GetPersistentDataPath(filename);
+            string directory = Path.GetDirectoryName(path);
+            string withoutExt = Path.GetFileNameWithoutExtension(path);
             return $"{directory}/{withoutExt}_raw.bytes";
+        }
+        
+        private void Save(Texture2D texture, string filename)
+        {
+            byte[] rawData = texture.GetRawTextureData();
+            byte[] encoded = ImageConverter.Encode(rawData, texture.width, texture.height, texture.format);
+
+            string path = GetRawDataSavePath(filename);
+
+            Debug.Log($"Saving a byte data to [{path}]");
+            
+            File.WriteAllBytes(path, encoded);
         }
     }
 }

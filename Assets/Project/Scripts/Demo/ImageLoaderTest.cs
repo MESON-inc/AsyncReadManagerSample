@@ -120,47 +120,32 @@ namespace AsyncReader.Demo
 
         private int _index = 0;
 
-        private async void LoadAsyncOnce()
+        private void Save()
         {
-            _index = (_index + 1) % _filenames.Length;
-            string filename = _filenames[_index];
-            
-            AsyncImageReader reader = new AsyncImageReader();
-            string basePath = $"{DirectoryPath}/{filename}";
-            string rawDataPath = GetRawDataSavePath(basePath);
+            foreach (var preview in _previews)
+            {
+                string path = GetRawDataSavePath(preview.FilePath);
+                ImageSaveTest.Save(preview.Texture, path);
+            }
 
-            Texture2D texture = await reader.LoadAsync(rawDataPath);
-
-            CreatePreview(texture, rawDataPath);
-    }
-
-    private void Save()
-    {
-        foreach (var preview in _previews)
-        {
-            string path = GetRawDataSavePath(preview.FilePath);
-            ImageSaveTest.Save(preview.Texture, path);
+            _saved = true;
         }
 
-        _saved = true;
+        private void CreatePreview(Texture2D texture, string path)
+        {
+            Preview preview = Instantiate(_previewPrefab);
+            preview.SetTexture(texture);
+            preview.FilePath = path;
+            preview.transform.SetParent(_parent, false);
+
+            _previews.Add(preview);
+        }
+
+        private string GetRawDataSavePath(string basePath)
+        {
+            string directory = Path.GetDirectoryName(basePath);
+            string withoutExt = Path.GetFileNameWithoutExtension(basePath);
+            return $"{directory}/{withoutExt}_raw.bytes";
+        }
     }
-
-    private void CreatePreview(Texture2D texture, string path)
-    {
-        Preview preview = Instantiate(_previewPrefab);
-        preview.SetTexture(texture);
-        preview.FilePath = path;
-        preview.transform.SetParent(_parent, false);
-
-        _previews.Add(preview);
-    }
-
-    private string GetRawDataSavePath(string basePath)
-    {
-        string directory = Path.GetDirectoryName(basePath);
-        string withoutExt = Path.GetFileNameWithoutExtension(basePath);
-        return $"{directory}/{withoutExt}_raw.bytes";
-    }
-}
-
 }

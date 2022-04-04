@@ -16,9 +16,8 @@ namespace AsyncReader.Demo
         [SerializeField] private Preview _previewPrefab;
         [SerializeField] private Transform _parent;
 
-        private readonly string _directoryName = "ExternalTextures";
         private string _cacheDataPath;
-        private string DirectoryPath => $"{_cacheDataPath}/../{_directoryName}";
+        private string DirectoryPath => $"{_cacheDataPath}";
 
         private List<Preview> _previews = new List<Preview>();
 
@@ -29,7 +28,7 @@ namespace AsyncReader.Demo
 
         private void Awake()
         {
-            _cacheDataPath = Application.dataPath;
+            _cacheDataPath = Application.streamingAssetsPath;
             _context = SynchronizationContext.Current;
         }
 

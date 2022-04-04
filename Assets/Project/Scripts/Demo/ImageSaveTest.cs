@@ -7,8 +7,9 @@ namespace AsyncReader.Demo
     {
         public static void Save(Texture2D texture, string path)
         {
-            // byte[] encoded = ImageConverter.Encode(texture);
-            // File.WriteAllBytes(path, encoded);
+            byte[] rawData = texture.GetRawTextureData();
+            byte[] encoded = ImageConverter.Encode(rawData, texture.width, texture.height, texture.format);
+            File.WriteAllBytes(path, encoded);
         }
     }
 }

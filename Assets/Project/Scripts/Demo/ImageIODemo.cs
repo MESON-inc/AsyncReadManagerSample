@@ -1,38 +1,26 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
-using System.Linq;
 using System.Threading;
 using UnityEngine;
-using UnityEngine.Networking;
 using Debug = UnityEngine.Debug;
-using AsyncReader.Utility;
 
 namespace AsyncReader.Demo
 {
     public class ImageIODemo : MonoBehaviour
     {
-        [SerializeField] private string[] _filenames;
         [SerializeField] private Preview _previewPrefab;
         [SerializeField] private Transform _parent;
-
-        public string[] ImageFilenameList => _filenames.Select(filename => GetStreamingAssetsPath(filename)).ToArray();
-        public string[] ByteFilenameList => _filenames.Select(filename => GetRawDataSavePath(GetStreamingAssetsPath(filename))).ToArray();
-
-        private string _cachedStreamingAssetsPath;
-        private string _cachedPersistentDataPath;
+        [SerializeField] private FileList _fileList;
 
         private List<Preview> _previews = new List<Preview>();
 
-        private bool _loaded = false;
-        private bool _saved = false;
+        private bool _started = false;
         private SynchronizationContext _context;
         private CancellationTokenSource _tokenSource;
 
         private void Awake()
         {
-            _cachedStreamingAssetsPath = Application.streamingAssetsPath;
-            _cachedPersistentDataPath = Application.persistentDataPath;
             _context = SynchronizationContext.Current;
         }
 
@@ -40,7 +28,7 @@ namespace AsyncReader.Demo
         {
             if (Input.GetKeyDown(KeyCode.L))
             {
-                Load();
+                // Load();
             }
 
             if (Input.GetKeyDown(KeyCode.A))
@@ -56,61 +44,54 @@ namespace AsyncReader.Demo
 
         private void OnGUI()
         {
-            if (_loaded)
+            if (_started)
             {
-                if (_saved) return;
-
-                if (GUI.Button(new Rect(50, 50, 300, 150), "Save"))
-                {
-                    Save();
-                }
-            }
-            else
-            {
-                if (GUI.Button(new Rect(50, 50, 300, 150), "Load"))
+                const int height = 100;
+                const int padding = 20;
+                const int margin = 30;
+                
+                if (GUI.Button(new Rect(50, margin, 300, height), "Load"))
                 {
                     Load();
                 }
 
-                if (GUI.Button(new Rect(50, 230, 300, 150), "LoadAsync"))
+                if (GUI.Button(new Rect(50, margin + height + padding, 300, height), "LoadAsync"))
                 {
                     LoadUsingAsyncReadManager();
+                }
+                
+                if (GUI.Button(new Rect(50, margin + (height + padding) * 2, 300, height), "Clear"))
+                {
+                    Clear();
                 }
             }
         }
 
-        private async void Load()
+        private void Load()
         {
-            Stopwatch sw = new Stopwatch();
-            sw.Start();
-            foreach (string filename in _filenames)
+            foreach (string filename in _fileList.Filenames)
             {
-                string path = GetStreamingAssetsPath(filename);
+                string path = _fileList.GetPersistentDataPath(filename);
 
-                using UnityWebRequest request = UnityWebRequestTexture.GetTexture(path);
+                byte[] data = File.ReadAllBytes(path);
 
-                await request.SendWebRequest();
-
-                Texture2D texture = DownloadHandlerTexture.GetContent(request);
+                Texture2D texture = new Texture2D(0, 0);
+                texture.LoadImage(data);
 
                 CreatePreview(texture, filename);
             }
-
-            sw.Stop();
-
-            Debug.Log($"<<<< Load time: {sw.ElapsedMilliseconds.ToString()}ms >>>>");
-
-            _loaded = true;
         }
 
         private async void LoadUsingAsyncReadManager()
         {
             _tokenSource = new CancellationTokenSource();
 
-            foreach (string filename in _filenames)
+            Stopwatch sw = new Stopwatch();
+            sw.Start();
+            foreach (string filename in _fileList.Filenames)
             {
                 AsyncImageReader reader = new AsyncImageReader();
-                string rawDataPath = GetRawDataSavePath(filename);
+                string rawDataPath = _fileList.GetRawDataSavePath(filename);
                 Texture2D texture = await reader.LoadAsync(rawDataPath, _tokenSource.Token);
 
                 if (_tokenSource.IsCancellationRequested) return;
@@ -118,52 +99,35 @@ namespace AsyncReader.Demo
                 CreatePreview(texture, filename);
             }
 
-            _loaded = true;
-        }
+            sw.Stop();
 
-        private int _index = 0;
+            Debug.Log($"<<<< {sw.ElapsedMilliseconds}ms >>>>");
 
-        private void Save()
-        {
-            foreach (var preview in _previews)
-            {
-                Save(preview.Texture, preview.Filename);
-            }
-
-            _saved = true;
+            _started = true;
         }
 
         private void CreatePreview(Texture2D texture, string filename)
         {
             Preview preview = Instantiate(_previewPrefab);
             preview.SetTexture(texture);
-            preview.Filename = filename;
             preview.transform.SetParent(_parent, false);
 
             _previews.Add(preview);
         }
-        
-        private string GetStreamingAssetsPath(string filename) => $"{_cachedStreamingAssetsPath}/{filename}";
-        private string GetPersistentDataPath(string filename) => $"{_cachedPersistentDataPath}/{filename}";
 
-        private string GetRawDataSavePath(string filename)
+        public void StartDemo()
         {
-            string path = GetPersistentDataPath(filename);
-            string directory = Path.GetDirectoryName(path);
-            string withoutExt = Path.GetFileNameWithoutExtension(path);
-            return $"{directory}/{withoutExt}_raw.bytes";
+            _started = true;
         }
-        
-        private void Save(Texture2D texture, string filename)
+
+        private void Clear()
         {
-            byte[] rawData = texture.GetRawTextureData();
-            byte[] encoded = ImageConverter.Encode(rawData, texture.width, texture.height, texture.format);
+            foreach (Preview preview in _previews)
+            {
+                preview.Dispose();
+            }
 
-            string path = GetRawDataSavePath(filename);
-
-            Debug.Log($"Saving a byte data to [{path}]");
-            
-            File.WriteAllBytes(path, encoded);
+            _previews.Clear();
         }
     }
 }

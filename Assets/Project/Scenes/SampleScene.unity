@@ -472,7 +472,7 @@ GameObject:
   - component: {fileID: 608670720}
   - component: {fileID: 608670719}
   m_Layer: 0
-  m_Name: Demo
+  m_Name: PrepareDemo
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -490,7 +490,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1fc50128314291f49a82275fb5d209d1, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  loaderDemo: {fileID: 23606977}
+  _fileList: {fileID: 11400000, guid: ed06c27e93c6b034f93a1459ea6ff32d, type: 2}
+  _ioDemo: {fileID: 23606977}
 --- !u!4 &608670720
 Transform:
   m_ObjectHideFlags: 0
@@ -769,10 +770,18 @@ PrefabInstance:
       propertyPath: m_Name
       value: ImageLoaderDemo
       objectReference: {fileID: 0}
+    - target: {fileID: 8175100377387268405, guid: f28909486d77e0c4f915737cdc92eac7, type: 3}
+      propertyPath: m_IsActive
+      value: 1
+      objectReference: {fileID: 0}
     - target: {fileID: 8175100377387268410, guid: f28909486d77e0c4f915737cdc92eac7, type: 3}
       propertyPath: _parent
       value: 
       objectReference: {fileID: 502592905}
+    - target: {fileID: 8175100377387268410, guid: f28909486d77e0c4f915737cdc92eac7, type: 3}
+      propertyPath: _fileList
+      value: 
+      objectReference: {fileID: 11400000, guid: ed06c27e93c6b034f93a1459ea6ff32d, type: 2}
     - target: {fileID: 8175100377387268411, guid: f28909486d77e0c4f915737cdc92eac7, type: 3}
       propertyPath: m_RootOrder
       value: 3

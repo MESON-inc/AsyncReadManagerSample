@@ -1,9 +1,9 @@
+using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Threading;
 using UnityEngine;
-using Debug = UnityEngine.Debug;
 
 namespace AsyncReader.Demo
 {
@@ -17,13 +17,7 @@ namespace AsyncReader.Demo
         private List<Preview> _previews = new List<Preview>();
 
         private bool _started = false;
-        private SynchronizationContext _context;
         private CancellationTokenSource _tokenSource;
-
-        private void Awake()
-        {
-            _context = SynchronizationContext.Current;
-        }
 
         private void OnDestroy()
         {
@@ -32,41 +26,44 @@ namespace AsyncReader.Demo
 
         private void OnGUI()
         {
-            if (_started)
-            {
-                const int height = 100;
-                const int padding = 20;
-                const int margin = 30;
-                
-                if (GUI.Button(new Rect(50, margin, 300, height), "Load"))
-                {
-                    Load();
-                }
+            if (!_started) return;
+            
+            const int height = 100;
+            const int padding = 20;
+            const int margin = 30;
 
-                if (GUI.Button(new Rect(50, margin + height + padding, 300, height), "LoadAsync"))
-                {
-                    LoadUsingAsyncReadManager(_fileList);
-                }
-                
-                if (GUI.Button(new Rect(50, margin + (height + padding) * 2, 300, height), "LoadAsync2"))
-                {
-                    LoadUsingAsyncReadManager(_fileList2);
-                }
-                
-                if (GUI.Button(new Rect(50, margin + (height + padding) * 3, 300, height), "Clear"))
-                {
-                    Clear();
-                }
+            if (GUI.Button(new Rect(50, margin, 300, height), "Load"))
+            {
+                LoadUsingLoadImage(_fileList);
+            }
+
+            if (GUI.Button(new Rect(50, margin + height + padding, 300, height), "LoadAsync"))
+            {
+                LoadUsingAsyncReadManager(_fileList);
+            }
+
+            if (GUI.Button(new Rect(50, margin + (height + padding) * 2, 300, height), "LoadAsync2"))
+            {
+                LoadUsingAsyncReadManager(_fileList2);
+            }
+
+            if (GUI.Button(new Rect(50, margin + (height + padding) * 3, 300, height), "Clear"))
+            {
+                Clear();
             }
         }
 
-        private void Load()
+        private async void LoadUsingLoadImage(FileList fileList)
         {
-            foreach (string filename in _fileList.Filenames)
+            foreach (string filename in fileList.Filenames)
             {
-                string path = _fileList.GetPersistentDataPath(filename);
+                string path = fileList.GetPersistentDataPath(filename);
 
-                byte[] data = File.ReadAllBytes(path);
+                AsyncFileReader reader = new AsyncFileReader();
+                (IntPtr ptr, long size) = await reader.LoadAsync(path);
+
+                byte[] data = new byte[size];
+                Marshal.Copy(ptr, data, 0, (int)size);
 
                 Texture2D texture = new Texture2D(0, 0);
                 texture.LoadImage(data);
@@ -79,8 +76,6 @@ namespace AsyncReader.Demo
         {
             _tokenSource = new CancellationTokenSource();
 
-            Stopwatch sw = new Stopwatch();
-            sw.Start();
             foreach (string filename in fileList.Filenames)
             {
                 AsyncImageReader reader = new AsyncImageReader();
@@ -91,10 +86,6 @@ namespace AsyncReader.Demo
 
                 CreatePreview(texture, filename);
             }
-
-            sw.Stop();
-
-            Debug.Log($"<<<< {sw.ElapsedMilliseconds}ms >>>>");
         }
 
         private void CreatePreview(Texture2D texture, string filename)
@@ -106,10 +97,7 @@ namespace AsyncReader.Demo
             _previews.Add(preview);
         }
 
-        public void StartDemo()
-        {
-            _started = true;
-        }
+        public void StartDemo() => _started = true;
 
         private void Clear()
         {

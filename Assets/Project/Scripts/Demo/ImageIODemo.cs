@@ -12,6 +12,7 @@ namespace AsyncReader.Demo
         [SerializeField] private Preview _previewPrefab;
         [SerializeField] private Transform _parent;
         [SerializeField] private FileList _fileList;
+        [SerializeField] private FileList _fileList2;
 
         private List<Preview> _previews = new List<Preview>();
 
@@ -22,19 +23,6 @@ namespace AsyncReader.Demo
         private void Awake()
         {
             _context = SynchronizationContext.Current;
-        }
-
-        private void Update()
-        {
-            if (Input.GetKeyDown(KeyCode.L))
-            {
-                // Load();
-            }
-
-            if (Input.GetKeyDown(KeyCode.A))
-            {
-                LoadUsingAsyncReadManager();
-            }
         }
 
         private void OnDestroy()
@@ -57,10 +45,15 @@ namespace AsyncReader.Demo
 
                 if (GUI.Button(new Rect(50, margin + height + padding, 300, height), "LoadAsync"))
                 {
-                    LoadUsingAsyncReadManager();
+                    LoadUsingAsyncReadManager(_fileList);
                 }
                 
-                if (GUI.Button(new Rect(50, margin + (height + padding) * 2, 300, height), "Clear"))
+                if (GUI.Button(new Rect(50, margin + (height + padding) * 2, 300, height), "LoadAsync2"))
+                {
+                    LoadUsingAsyncReadManager(_fileList2);
+                }
+                
+                if (GUI.Button(new Rect(50, margin + (height + padding) * 3, 300, height), "Clear"))
                 {
                     Clear();
                 }
@@ -82,16 +75,16 @@ namespace AsyncReader.Demo
             }
         }
 
-        private async void LoadUsingAsyncReadManager()
+        private async void LoadUsingAsyncReadManager(FileList fileList)
         {
             _tokenSource = new CancellationTokenSource();
 
             Stopwatch sw = new Stopwatch();
             sw.Start();
-            foreach (string filename in _fileList.Filenames)
+            foreach (string filename in fileList.Filenames)
             {
                 AsyncImageReader reader = new AsyncImageReader();
-                string rawDataPath = _fileList.GetRawDataSavePath(filename);
+                string rawDataPath = fileList.GetRawDataSavePath(filename);
                 Texture2D texture = await reader.LoadAsync(rawDataPath, _tokenSource.Token);
 
                 if (_tokenSource.IsCancellationRequested) return;
@@ -102,8 +95,6 @@ namespace AsyncReader.Demo
             sw.Stop();
 
             Debug.Log($"<<<< {sw.ElapsedMilliseconds}ms >>>>");
-
-            _started = true;
         }
 
         private void CreatePreview(Texture2D texture, string filename)

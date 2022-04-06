@@ -59,7 +59,7 @@ namespace AsyncReader.Demo
             {
                 string path = fileList.GetPersistentDataPath(filename);
 
-                AsyncFileReader reader = new AsyncFileReader();
+                using AsyncFileReader reader = new AsyncFileReader();
                 (IntPtr ptr, long size) = await reader.LoadAsync(path);
 
                 byte[] data = new byte[size];

@@ -64,10 +64,6 @@ namespace AsyncReader
         private NativeArray<ReadCommand> _readCommands;
         private long _fileSize;
 
-        public AsyncFileReader()
-        {
-        }
-
         public unsafe void Dispose()
         {
             _readHandle.Dispose();

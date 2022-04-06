@@ -1,4 +1,3 @@
-using System.IO;
 using UnityEngine;
 
 namespace AsyncReader.Demo
@@ -21,13 +20,5 @@ namespace AsyncReader.Demo
 
         public string GetStreamingAssetsPath(string filename) => $"{_cachedStreamingAssetsPath}/{filename}";
         public string GetPersistentDataPath(string filename) => $"{_cachedPersistentDataPath}/{filename}";
-
-        public string GetRawDataSavePath(string filename)
-        {
-            string path = GetPersistentDataPath(filename);
-            string directory = Path.GetDirectoryName(path);
-            string withoutExt = Path.GetFileNameWithoutExtension(path);
-            return $"{directory}/{withoutExt}_raw.bytes";
-        }
     }
 }

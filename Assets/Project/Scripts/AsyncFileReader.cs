@@ -26,7 +26,6 @@ namespace AsyncReader
                 {
                     IsBackground = true
                 };
-                _thread.Start();
             }
 
             ~Awaitable()
@@ -54,6 +53,8 @@ namespace AsyncReader
             public TaskAwaiter<bool> GetAwaiter()
             {
                 _completionSource = new TaskCompletionSource<bool>();
+                
+                _thread.Start();
 
                 return _completionSource.Task.GetAwaiter();
             }

@@ -12,48 +12,41 @@ namespace AsyncReader.Demo
         [SerializeField] private Preview _previewPrefab;
         [SerializeField] private Transform _parent;
         [SerializeField] private FileList _fileList;
-        [SerializeField] private FileList _fileList2;
+        [SerializeField] private GameObject _ui;
 
         private List<Preview> _previews = new List<Preview>();
 
-        private bool _started = false;
         private CancellationTokenSource _tokenSource;
+
+        #region ### ------------------------------ MonoBehaviour ------------------------------ ###
+
+        private void Awake()
+        {
+            _ui.SetActive(false);
+        }
 
         private void OnDestroy()
         {
             _tokenSource?.Cancel();
         }
 
-        private void OnGUI()
+        #endregion ### ------------------------------ MonoBehaviour ------------------------------ ###
+
+        private void Load(FileList fileList)
         {
-            if (!_started) return;
-            
-            const int height = 100;
-            const int padding = 20;
-            const int margin = 30;
-
-            if (GUI.Button(new Rect(50, margin, 300, height), "Load"))
+            foreach (string filename in fileList.Filenames)
             {
-                LoadUsingLoadImage(_fileList);
-            }
+                string path = fileList.GetPersistentDataPath(filename);
 
-            if (GUI.Button(new Rect(50, margin + height + padding, 300, height), "LoadAsync"))
-            {
-                LoadUsingAsyncReadManager(_fileList);
-            }
+                byte[] data = File.ReadAllBytes(path);
+                Texture2D texture = new Texture2D(0, 0);
+                texture.LoadImage(data);
 
-            if (GUI.Button(new Rect(50, margin + (height + padding) * 2, 300, height), "LoadAsync2"))
-            {
-                LoadUsingAsyncReadManager(_fileList2);
-            }
-
-            if (GUI.Button(new Rect(50, margin + (height + padding) * 3, 300, height), "Clear"))
-            {
-                Clear();
+                CreatePreview(texture, filename);
             }
         }
 
-        private async void LoadUsingLoadImage(FileList fileList)
+        private async void LoadAsync(FileList fileList)
         {
             foreach (string filename in fileList.Filenames)
             {
@@ -72,22 +65,6 @@ namespace AsyncReader.Demo
             }
         }
 
-        private async void LoadUsingAsyncReadManager(FileList fileList)
-        {
-            _tokenSource = new CancellationTokenSource();
-
-            foreach (string filename in fileList.Filenames)
-            {
-                AsyncImageReader reader = new AsyncImageReader();
-                string rawDataPath = fileList.GetRawDataSavePath(filename);
-                Texture2D texture = await reader.LoadAsync(rawDataPath, _tokenSource.Token);
-
-                if (_tokenSource.IsCancellationRequested) return;
-
-                CreatePreview(texture, filename);
-            }
-        }
-
         private void CreatePreview(Texture2D texture, string filename)
         {
             Preview preview = Instantiate(_previewPrefab);
@@ -97,7 +74,10 @@ namespace AsyncReader.Demo
             _previews.Add(preview);
         }
 
-        public void StartDemo() => _started = true;
+        public void StartDemo()
+        {
+            _ui.SetActive(true);
+        }
 
         private void Clear()
         {
@@ -107,6 +87,21 @@ namespace AsyncReader.Demo
             }
 
             _previews.Clear();
+        }
+
+        public void InspectorClickLoad()
+        {
+            Load(_fileList);
+        }
+
+        public void InspectorClickLoadAsync()
+        {
+            LoadAsync(_fileList);
+        }
+
+        public void InspectorClickClear()
+        {
+            Clear();
         }
     }
 }

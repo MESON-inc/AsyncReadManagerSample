@@ -1,9 +1,9 @@
 using System.IO;
 using System.Threading.Tasks;
 using UnityEngine;
+using UnityEngine.UI;
 using UnityEngine.Networking;
 using AsyncReader.Utility;
-using Debug = UnityEngine.Debug;
 
 namespace AsyncReader.Demo
 {
@@ -12,10 +12,18 @@ namespace AsyncReader.Demo
         [SerializeField] private FileList _fileList;
         [SerializeField] private FileList _fileList2;
         [SerializeField] private ImageIODemo _ioDemo;
+        [SerializeField] private GameObject _progress;
+        [SerializeField] private Image _progressBar;
+        [SerializeField] private Rotater _rotater;
+
+        private int _total = 0;
+        private int _count = 0;
 
         private void Awake()
         {
             Application.targetFrameRate = 60;
+
+            _total = _fileList.Filenames.Length + _fileList2.Filenames.Length;
         }
 
         private void Start()
@@ -28,6 +36,10 @@ namespace AsyncReader.Demo
             await PrepareList(_fileList);
             await PrepareList(_fileList2);
 
+            _progress.SetActive(false);
+
+            _rotater.StartRotate();
+            
             _ioDemo.StartDemo();
         }
 
@@ -49,11 +61,12 @@ namespace AsyncReader.Demo
                 Texture2D texture = DownloadHandlerTexture.GetContent(request);
 #endif
 
-                string rawDataSavePath = fileList.GetRawDataSavePath(filename);
-                SaveAsRawData(texture, rawDataSavePath);
-
                 string savePath = fileList.GetPersistentDataPath(filename);
                 Save(texture, savePath);
+
+                _count++;
+                
+                UpdateProgress();
             }
         }
 
@@ -63,14 +76,9 @@ namespace AsyncReader.Demo
             File.WriteAllBytes(path, data);
         }
 
-        private void SaveAsRawData(Texture2D texture, string path)
+        private void UpdateProgress()
         {
-            byte[] rawData = texture.GetRawTextureData();
-            byte[] encoded = ImageConverter.Encode(rawData, texture.width, texture.height, texture.format);
-
-            Debug.Log($"Saving a byte data to [{path}]");
-
-            File.WriteAllBytes(path, encoded);
+            _progressBar.fillAmount = _count / (float)_total;
         }
     }
 }

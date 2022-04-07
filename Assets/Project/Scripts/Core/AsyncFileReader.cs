@@ -6,17 +6,19 @@ using System.Threading.Tasks;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.IO.LowLevel.Unsafe;
+using UnityEngine;
 
 namespace AsyncReader
 {
     public class AsyncFileReader : IDisposable
     {
-        private class Awaitable
+        private class Awaitable : IDisposable
         {
             private Thread _thread;
             private ReadHandle _handle;
             private TaskCompletionSource<bool> _completionSource;
             private bool _success = false;
+            private bool _stopped = false;
 
             public Awaitable(ReadHandle handle)
             {
@@ -30,24 +32,28 @@ namespace AsyncReader
 
             ~Awaitable()
             {
-                _thread.Abort();
+                Dispose();
             }
 
             private void CheckLoop()
             {
                 while (true)
                 {
+                    if (_stopped) return;
+                    
                     if (_handle.Status == ReadStatus.InProgress)
                     {
                         Thread.Sleep(16);
                         continue;
                     }
+                    
+                    if (_stopped) return;
 
                     _success = _handle.Status == ReadStatus.Complete;
                     break;
                 }
 
-                _completionSource.TrySetResult(_success);
+                _completionSource?.TrySetResult(_success);
             }
 
             public TaskAwaiter<bool> GetAwaiter()
@@ -58,15 +64,22 @@ namespace AsyncReader
 
                 return _completionSource.Task.GetAwaiter();
             }
+
+            public void Dispose()
+            {
+                if (_stopped) return;
+                
+                if (_thread is { IsAlive: false }) return;
+                
+                _stopped = true;
+                
+                _thread.Abort();
+            }
         }
 
         private ReadHandle _readHandle;
         private NativeArray<ReadCommand> _readCommands;
         private long _fileSize;
-
-        public AsyncFileReader()
-        {
-        }
 
         public unsafe void Dispose()
         {
@@ -80,7 +93,10 @@ namespace AsyncReader
         {
             UnsafeLoad(filePath);
 
-            await new Awaitable(_readHandle);
+            Awaitable awaitable = new Awaitable(_readHandle);
+            await awaitable;
+            
+            awaitable.Dispose();
 
             IntPtr ptr = GetPointer();
 

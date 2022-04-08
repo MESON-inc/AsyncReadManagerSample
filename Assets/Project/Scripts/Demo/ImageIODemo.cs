@@ -1,22 +1,43 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
-using System.Runtime.InteropServices;
 using System.Threading;
 using UnityEngine;
+using Debug = UnityEngine.Debug;
 
 namespace AsyncReader.Demo
 {
     public class ImageIODemo : MonoBehaviour
     {
+        private struct TimeAnalyzeData
+        {
+            private long _totalMilliseconds;
+            public int Count { get; private set; }
+
+            public void Add(long milliseconds)
+            {
+                _totalMilliseconds += milliseconds;
+                Count++;
+            }
+
+            public long GetAverage()
+            {
+                return _totalMilliseconds / Count;
+            }
+        }
+        
         [SerializeField] private Preview _previewPrefab;
         [SerializeField] private Transform _parent;
         [SerializeField] private FileList _fileList;
         [SerializeField] private GameObject _ui;
 
         private List<Preview> _previews = new List<Preview>();
-
         private CancellationTokenSource _tokenSource;
+
+        private Stopwatch _stopwatch = new Stopwatch();
+        private TimeAnalyzeData _loadAnalyzeData;
+        private TimeAnalyzeData _loadAsyncAnalyzeData;
 
         #region ### ------------------------------ MonoBehaviour ------------------------------ ###
 
@@ -34,20 +55,31 @@ namespace AsyncReader.Demo
 
         private void Load(FileList fileList)
         {
+            Stopwatch sw = new Stopwatch();
             foreach (string filename in fileList.Filenames)
             {
                 string path = fileList.GetPersistentDataPath(filename);
 
                 byte[] data = File.ReadAllBytes(path);
+                
+                sw.Restart();
+                
                 Texture2D texture = new Texture2D(0, 0);
                 texture.LoadImage(data);
+                
+                sw.Stop();
+
+                _loadAnalyzeData.Add(sw.ElapsedMilliseconds);
 
                 CreatePreview(texture, filename);
             }
+            
+            Debug.Log($"Sync avg [{_loadAnalyzeData.Count}]: {_loadAnalyzeData.GetAverage().ToString()}ms");
         }
 
         private async void LoadAsync(FileList fileList)
         {
+            Stopwatch sw = new Stopwatch();
             foreach (string filename in fileList.Filenames)
             {
                 string path = fileList.GetRawDataSavePath(filename);
@@ -55,14 +87,20 @@ namespace AsyncReader.Demo
                 using AsyncFileReader reader = new AsyncFileReader();
                 (IntPtr ptr, long size) = await reader.LoadAsync(path);
 
+                sw.Restart();
                 ImageInfo info = ImageConverter.Decode(ptr, (int)size);
 
                 Texture2D texture = new Texture2D(info.header.width, info.header.height, info.header.Format, false);
                 texture.LoadRawTextureData(info.buffer, info.fileSize);
                 texture.Apply();
+                
+                sw.Stop();
+                _loadAsyncAnalyzeData.Add(sw.ElapsedMilliseconds);
 
                 CreatePreview(texture, filename);
             }
+
+            Debug.Log($"Async avg [{_loadAnalyzeData.Count}]: {_loadAsyncAnalyzeData.GetAverage().ToString()}ms");
         }
 
         private void CreatePreview(Texture2D texture, string filename)

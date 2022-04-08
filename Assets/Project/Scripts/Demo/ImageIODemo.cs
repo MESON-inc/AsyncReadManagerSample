@@ -100,7 +100,7 @@ namespace AsyncReader.Demo
                 CreatePreview(texture, filename);
             }
 
-            Debug.Log($"Async avg [{_loadAnalyzeData.Count}]: {_loadAsyncAnalyzeData.GetAverage().ToString()}ms");
+            Debug.Log($"Async avg [{_loadAsyncAnalyzeData.Count}]: {_loadAsyncAnalyzeData.GetAverage().ToString()}ms");
         }
 
         private void CreatePreview(Texture2D texture, string filename)

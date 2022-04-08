@@ -1,6 +1,8 @@
 using System.IO;
 using System.Threading.Tasks;
+using AsyncReader.Utility;
 using UnityEngine;
+using UnityEngine.Networking;
 using UnityEngine.UI;
 
 namespace AsyncReader.Demo

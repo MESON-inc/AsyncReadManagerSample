@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Threading;
 using UnityEngine;
+using UnityEngine.UI;
 using Debug = UnityEngine.Debug;
 
 namespace AsyncReader.Demo
@@ -31,6 +32,7 @@ namespace AsyncReader.Demo
         [SerializeField] private Transform _parent;
         [SerializeField] private FileList _fileList;
         [SerializeField] private GameObject _ui;
+        [SerializeField] private Text _timeText;
 
         private List<Preview> _previews = new List<Preview>();
         private CancellationTokenSource _tokenSource;
@@ -75,6 +77,8 @@ namespace AsyncReader.Demo
             }
             
             Debug.Log($"Sync avg [{_loadAnalyzeData.Count}]: {_loadAnalyzeData.GetAverage().ToString()}ms");
+            
+            UpdateTimeText(sw.ElapsedMilliseconds);
         }
 
         private async void LoadAsync(FileList fileList)
@@ -101,6 +105,13 @@ namespace AsyncReader.Demo
             }
 
             Debug.Log($"Async avg [{_loadAsyncAnalyzeData.Count}]: {_loadAsyncAnalyzeData.GetAverage().ToString()}ms");
+
+            UpdateTimeText(sw.ElapsedMilliseconds);
+        }
+
+        private void UpdateTimeText(long milliseconds)
+        {
+            _timeText.text = $"Average: {milliseconds.ToString()}ms";
         }
 
         private void CreatePreview(Texture2D texture, string filename)

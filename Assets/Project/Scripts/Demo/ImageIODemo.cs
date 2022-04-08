@@ -50,16 +50,16 @@ namespace AsyncReader.Demo
         {
             foreach (string filename in fileList.Filenames)
             {
-                string path = fileList.GetPersistentDataPath(filename);
+                string path = fileList.GetRawDataSavePath(filename);
 
                 using AsyncFileReader reader = new AsyncFileReader();
                 (IntPtr ptr, long size) = await reader.LoadAsync(path);
 
-                byte[] data = new byte[size];
-                Marshal.Copy(ptr, data, 0, (int)size);
+                ImageInfo info = ImageConverter.Decode(ptr, (int)size);
 
-                Texture2D texture = new Texture2D(0, 0);
-                texture.LoadImage(data);
+                Texture2D texture = new Texture2D(info.header.width, info.header.height, info.header.Format, false);
+                texture.LoadRawTextureData(info.buffer, info.fileSize);
+                texture.Apply();
 
                 CreatePreview(texture, filename);
             }

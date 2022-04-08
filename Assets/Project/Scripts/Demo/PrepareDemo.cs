@@ -61,18 +61,18 @@ namespace AsyncReader.Demo
                 Texture2D texture = DownloadHandlerTexture.GetContent(request);
 #endif
 
-                string savePath = fileList.GetPersistentDataPath(filename);
-                Save(texture, savePath);
+                string savePath = fileList.GetRawDataSavePath(filename);
+                SaveAsRawData(texture, savePath);
 
                 _count++;
                 
                 UpdateProgress();
             }
         }
-
-        private void Save(Texture2D texture, string path)
+        
+        private void SaveAsRawData(Texture2D texture, string path)
         {
-            byte[] data = texture.EncodeToJPG();
+            byte[] data = ImageConverter.Encode(texture.GetRawTextureData(), texture.width, texture.height, texture.format);
             File.WriteAllBytes(path, data);
         }
 
